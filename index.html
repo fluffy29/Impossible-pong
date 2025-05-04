@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>README Pong</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background-color: black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      background-color: #111;
+      display: block;
+      border: 3px solid #0ff;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="pong" width="500" height="300"></canvas>
+  <script>
+    const canvas = document.getElementById("pong");
+    const ctx = canvas.getContext("2d");
+
+    const paddleWidth = 10, paddleHeight = 60;
+    const player = { x: 10, y: canvas.height / 2 - paddleHeight / 2 };
+    const ai = { x: canvas.width - 20, y: canvas.height / 2 - paddleHeight / 2 };
+    const ball = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      radius: 7,
+      speed: 3,
+      dx: 3,
+      dy: 3
+    };
+
+    function drawRect(x, y, w, h, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, w, h);
+    }
+
+    function drawBall(x, y, r, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawNet() {
+      for (let i = 0; i < canvas.height; i += 15) {
+        drawRect(canvas.width / 2 - 1, i, 2, 10, "#0ff");
+      }
+    }
+
+    function render() {
+      drawRect(0, 0, canvas.width, canvas.height, "#000");
+      drawNet();
+      drawRect(player.x, player.y, paddleWidth, paddleHeight, "#0ff");
+      drawRect(ai.x, ai.y, paddleWidth, paddleHeight, "#f0f");
+      drawBall(ball.x, ball.y, ball.radius, "#fff");
+    }
+
+    function moveBall() {
+      ball.x += ball.dx;
+      ball.y += ball.dy;
+
+      if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+        ball.dy *= -1;
+      }
+
+      const playerBox = {
+        top: player.y,
+        bottom: player.y + paddleHeight,
+        left: player.x,
+        right: player.x + paddleWidth
+      };
+
+      const aiBox = {
+        top: ai.y,
+        bottom: ai.y + paddleHeight,
+        left: ai.x,
+        right: ai.x + paddleWidth
+      };
+
+      if (ball.x - ball.radius < playerBox.right && ball.y > playerBox.top && ball.y < playerBox.bottom) {
+        ball.dx = Math.abs(ball.dx); // make sure it's going right
+        ball.x = playerBox.right;
+      }
+
+      if (ball.x + ball.radius > aiBox.left && ball.y > aiBox.top && ball.y < aiBox.bottom) {
+        ball.dx = -Math.abs(ball.dx); // make sure it's going left
+        ball.x = aiBox.left - ball.radius;
+      }
+
+      if (ball.x + ball.radius < 0 || ball.x - ball.radius > canvas.width) {
+        ball.x = canvas.width / 2;
+        ball.y = canvas.height / 2;
+        ball.dx = (Math.random() > 0.5 ? 1 : -1) * ball.speed;
+        ball.dy = (Math.random() > 0.5 ? 1 : -1) * ball.speed;
+      }
+    }
+
+    function moveAI() {
+      const target = ball.y - (paddleHeight / 2);
+      ai.y += (target - ai.y) * 0.15;
+    }
+
+    function update() {
+      moveBall();
+      moveAI();
+    }
+
+    function gameLoop() {
+      update();
+      render();
+    }
+    setInterval(gameLoop, 1000 / 60);
+
+    document.addEventListener("mousemove", (e) => {
+      const canvasRect = canvas.getBoundingClientRect();
+      player.y = e.clientY - canvasRect.top - paddleHeight / 2;
+    });
+  </script>
+</body>
+</html>
