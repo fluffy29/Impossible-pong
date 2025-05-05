@@ -1,130 +1,294 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>README Pong</title>
+  <title>Impossible pong</title>
   <style>
-    html, body {
+    :root {
+      --bg-color: #000;
+      --paddle-color: #0ff;
+      --ai-color: #f0f;
+      --ball-color: #fff;
+      --glow: 0 0 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
       margin: 0;
+      padding: 0;
       height: 100%;
-      background-color: black;
+      background: radial-gradient(circle, #000 40%, #111);
+      color: #fff;
+      font-family: monospace;
+      overflow: hidden;
       display: flex;
+      flex-direction: column;
       align-items: center;
+    }
+
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      width: 600px;
+      margin: 10px;
+    }
+
+    .score {
+      font-size: 24px;
+      color: #0ff;
+      text-shadow: 0 0 10px #0ff;
+    }
+
+    canvas {
+      border: 4px solid #0ff;
+      box-shadow: 0 0 25px #0ff;
+      background: #000;
+    }
+
+    #settings {
+      margin-top: 10px;
+      color: #0ff;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
       justify-content: center;
     }
-    canvas {
-      background-color: #111;
-      display: block;
-      border: 3px solid #0ff;
+
+    label,
+    select,
+    input,
+    button {
+      font-family: monospace;
+      color: #0ff;
+      background: #111;
+      border: 1px solid #0ff;
+      padding: 4px;
+      border-radius: 4px;
     }
   </style>
 </head>
+
 <body>
-  <canvas id="pong" width="500" height="300"></canvas>
+  <div id="hud">
+    <div class="score" id="playerScore">Player: 0</div>
+    <div class="score" id="aiScore">AI: 0</div>
+  </div>
+  <canvas id="pong" width="600" height="400"></canvas>
+  <div id="settings">
+    <label for="speed">Speed:</label>
+    <select id="speed">
+      <option value="3">Slow</option>
+      <option value="4">Normal</option>
+      <option value="6">Fast</option>
+    </select>
+    <label for="difficulty">Difficulty:</label>
+    <select id="difficulty">
+      <option value="0.04" selected>Easy</option>
+      <option value="0.07">Normal</option>
+      <option value="0.12">Hard</option>
+    </select>
+    <label for="sound">Sound:</label>
+    <input type="checkbox" id="sound" checked />
+    <button id="pauseBtn">Pause</button>
+    <button id="resumeBtn">Resume</button>
+  </div>
+
   <script>
-    const canvas = document.getElementById("pong");
-    const ctx = canvas.getContext("2d");
-
-    const paddleWidth = 10, paddleHeight = 60;
-    const player = { x: 10, y: canvas.height / 2 - paddleHeight / 2 };
-    const ai = { x: canvas.width - 20, y: canvas.height / 2 - paddleHeight / 2 };
-    const ball = {
-      x: canvas.width / 2,
-      y: canvas.height / 2,
-      radius: 7,
-      speed: 3,
-      dx: 3,
-      dy: 3
-    };
-
-    function drawRect(x, y, w, h, color) {
-      ctx.fillStyle = color;
-      ctx.fillRect(x, y, w, h);
-    }
-
-    function drawBall(x, y, r, color) {
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    function drawNet() {
-      for (let i = 0; i < canvas.height; i += 15) {
-        drawRect(canvas.width / 2 - 1, i, 2, 10, "#0ff");
+    class Sound {
+      static play(frequency = 400) {
+        if (!document.getElementById('sound').checked) return;
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = frequency;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.1);
       }
     }
 
-    function render() {
-      drawRect(0, 0, canvas.width, canvas.height, "#000");
-      drawNet();
-      drawRect(player.x, player.y, paddleWidth, paddleHeight, "#0ff");
-      drawRect(ai.x, ai.y, paddleWidth, paddleHeight, "#f0f");
-      drawBall(ball.x, ball.y, ball.radius, "#fff");
-    }
-
-    function moveBall() {
-      ball.x += ball.dx;
-      ball.y += ball.dy;
-
-      if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
-        ball.dy *= -1;
+    class Particle {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.dx = (Math.random() - 0.5) * 2;
+        this.dy = (Math.random() - 0.5) * 2;
+        this.life = 30;
       }
-
-      const playerBox = {
-        top: player.y,
-        bottom: player.y + paddleHeight,
-        left: player.x,
-        right: player.x + paddleWidth
-      };
-
-      const aiBox = {
-        top: ai.y,
-        bottom: ai.y + paddleHeight,
-        left: ai.x,
-        right: ai.x + paddleWidth
-      };
-
-      if (ball.x - ball.radius < playerBox.right && ball.y > playerBox.top && ball.y < playerBox.bottom) {
-        ball.dx = Math.abs(ball.dx); // make sure it's going right
-        ball.x = playerBox.right;
+      update() {
+        this.x += this.dx;
+        this.y += this.dy;
+        this.life--;
       }
-
-      if (ball.x + ball.radius > aiBox.left && ball.y > aiBox.top && ball.y < aiBox.bottom) {
-        ball.dx = -Math.abs(ball.dx); // make sure it's going left
-        ball.x = aiBox.left - ball.radius;
-      }
-
-      if (ball.x + ball.radius < 0 || ball.x - ball.radius > canvas.width) {
-        ball.x = canvas.width / 2;
-        ball.y = canvas.height / 2;
-        ball.dx = (Math.random() > 0.5 ? 1 : -1) * ball.speed;
-        ball.dy = (Math.random() > 0.5 ? 1 : -1) * ball.speed;
+      draw(ctx) {
+        ctx.fillStyle = `rgba(255,255,255,${this.life / 30})`;
+        ctx.fillRect(this.x, this.y, 2, 2);
       }
     }
 
-    function moveAI() {
-      const target = ball.y - (paddleHeight / 2);
-      ai.y += (target - ai.y) * 0.15;
+    class Paddle {
+      constructor(x, color) {
+        this.width = 12;
+        this.height = 70;
+        this.x = x;
+        this.y = 165;
+        this.color = color;
+      }
+      draw(ctx) {
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = this.color;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+      }
     }
 
-    function update() {
-      moveBall();
-      moveAI();
+    class Ball {
+      constructor(speed) {
+        this.baseSpeed = speed;
+        this.reset();
+      }
+      reset() {
+        this.x = 300;
+        this.y = 200;
+        this.radius = 8;
+        this.speed = this.baseSpeed;
+        const angle = Math.random() * Math.PI / 2 - Math.PI / 4;
+        const direction = 1; // always toward AI
+        this.dx = direction * this.speed * Math.cos(angle);
+        this.dy = this.speed * Math.sin(angle);
+      }
+      draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#fff';
+        ctx.fill();
+        ctx.closePath();
+      }
+      update(player, ai, updateScore, particles) {
+        this.x += this.dx;
+        this.y += this.dy;
+        particles.push(new Particle(this.x, this.y));
+
+        if (this.y < this.radius || this.y > 400 - this.radius) {
+          this.dy *= -1;
+          Sound.play(300);
+        }
+
+        if (this.x - this.radius < player.x + player.width &&
+          this.y > player.y && this.y < player.y + player.height) {
+          this.x = player.x + player.width + this.radius;
+          this.dx *= -1.05;
+          Sound.play(500);
+        }
+
+        if (this.x + this.radius > ai.x &&
+          this.y > ai.y && this.y < ai.y + ai.height) {
+          this.x = ai.x - this.radius;
+          this.dx *= -1.05;
+          Sound.play(700);
+        }
+
+        if (this.x < 0) {
+          updateScore('ai');
+          Sound.play(200);
+          this.reset();
+        } else if (this.x > 600) {
+          updateScore('player');
+          Sound.play(900);
+          this.reset();
+        }
+      }
     }
 
-    function gameLoop() {
-      update();
-      render();
-    }
-    setInterval(gameLoop, 1000 / 60);
+    class Game {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.player = new Paddle(10, '#0ff');
+        this.ai = new Paddle(578, '#f0f');
+        this.ball = new Ball(this.getSpeed());
+        this.playerScore = 0;
+        this.aiScore = 0;
+        this.particles = [];
+        this.paused = false;
 
-    document.addEventListener("mousemove", (e) => {
-      const canvasRect = canvas.getBoundingClientRect();
-      player.y = e.clientY - canvasRect.top - paddleHeight / 2;
-    });
+        document.getElementById('speed').addEventListener('change', () => {
+          this.ball.baseSpeed = this.getSpeed();
+          this.ball.reset();
+        });
+        document.getElementById('difficulty').addEventListener('change', () => {
+          this.difficulty = this.getDifficulty();
+        });
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+          this.paused = true;
+        });
+        document.getElementById('resumeBtn').addEventListener('click', () => {
+          if (this.paused) {
+            this.paused = false;
+            this.loop();
+          }
+        });
+        document.addEventListener('mousemove', e => {
+          const rect = canvas.getBoundingClientRect();
+          this.player.y = e.clientY - rect.top - this.player.height / 2;
+        });
+
+        this.difficulty = this.getDifficulty();
+        this.loop();
+      }
+      getSpeed() {
+        return parseInt(document.getElementById('speed').value);
+      }
+      getDifficulty() {
+        return parseFloat(document.getElementById('difficulty').value);
+      }
+      updateScore(who) {
+        if (who === 'player') this.playerScore++;
+        else this.aiScore++;
+        document.getElementById('playerScore').textContent = `Player: ${this.playerScore}`;
+        document.getElementById('aiScore').textContent = `AI: ${this.aiScore}`;
+      }
+      drawNet() {
+        for (let i = 0; i < 400; i += 20) {
+          this.ctx.fillStyle = '#0ff';
+          this.ctx.fillRect(298, i, 4, 10);
+        }
+      }
+      loop() {
+        if (this.paused) return;
+        requestAnimationFrame(() => this.loop());
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        this.ball.update(this.player, this.ai, this.updateScore.bind(this), this.particles);
+        const target = this.ball.y - this.ai.height / 2;
+        this.ai.y += (target - this.ai.y) * this.difficulty;
+
+        this.drawNet();
+        this.player.draw(this.ctx);
+        this.ai.draw(this.ctx);
+        this.ball.draw(this.ctx);
+
+        this.particles.forEach((p, i) => {
+          p.update();
+          p.draw(this.ctx);
+          if (p.life <= 0) this.particles.splice(i, 1);
+        });
+      }
+    }
+
+    const game = new Game(document.getElementById('pong'));
   </script>
 </body>
+
 </html>
